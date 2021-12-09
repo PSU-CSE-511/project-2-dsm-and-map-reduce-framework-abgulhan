@@ -47,6 +47,22 @@ vector<string> other_addresses;
 unsigned int self_id = -1;
 string self_ip;
 
+int mutex_log_rpc(string fname, string my_ip, string dest_ip, int lockno, int myseqno){
+	string filename = "rpc-log-file" + to_string(self_id) + ".txt"; 
+	ofstream myfile;
+	myfile.open (filename, fstream::app);
+	
+    myfile  << "----RPC call from " << my_ip 
+			<< " to " << dest_ip 
+			<< " for "  << fname 
+			<< " with arguments: lockno: " << lockno;
+			if (fname == "send_mutex_request")
+				myfile << " seqno: " << myseqno;
+			
+	myfile  << " ----" << endl << flush;
+    myfile.close();
+	return 0;
+}
 
 void mutex_check_host_name(int hostname) { //This function returns host name for local computer
    if (hostname == -1) {
@@ -283,6 +299,7 @@ void enter_cr(int lockno) {
 		);
 		
 		int response = -2;
+		mutex_log_rpc("send_mutex_request", id_to_ip[self_id], other_addresses[i], lockno, my_sequence_no);
 		response = client.send_mutex_request(lockno, my_sequence_no);
 		
 		if (response == -1) {
@@ -308,7 +325,7 @@ void send_deferred_replies(int lockno) {
 				grpc::InsecureChannelCredentials()
 			)
 		);
-		
+		mutex_log_rpc("send_deferred_reply", id_to_ip[self_id], address, lockno, -1);	
 		client.send_deferred_reply(lockno);
 	}
 	

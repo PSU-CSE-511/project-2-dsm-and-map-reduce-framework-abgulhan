@@ -104,6 +104,54 @@ directory_entry_t directory[MAX_PAGES];
 
 pthread_mutex_t num_pages_lock;
 
+int log_rpc(string fname, string my_ip, string dest_ip, int request_type, uint64_t vaddr, int node_id, char data[], string name){
+	string filename = "rpc-log-file" + to_string(node_id) + ".txt"; 
+	string type_str;
+	string ack_type;
+	string frame;
+	string my_data;
+	ofstream myfile;
+	string vaddr_str;
+	char buff[128];
+	myfile.open (filename, fstream::app);
+	
+	snprintf(buff, sizeof((long)vaddr),"0x%lx", (long) vaddr);
+	vaddr_str = buff;
+	
+	
+	switch(request_type){
+		case 0: type_str = "READ_REQ"; break;
+		case 1: type_str = "WRITE_REQ"; break;
+		case 2: type_str = "ACK"; break;
+		case 3: type_str = "INVALIDATE"; break;
+		case 4: type_str = "REGISTER"; break;
+		case 5: type_str = "UNREGISTER"; break;
+		case 6: type_str = "HEAP_REG"; break;
+		default: type_str = to_string(request_type);
+	}
+
+	my_data = "empty page";
+	
+	for (int i=0; i<4096; i++){
+		if (data[i] != 0){
+			my_data = "copied page";
+			break;
+		}
+	}
+	
+    myfile  << "----RPC call from " << my_ip 
+			<< " to " << dest_ip 
+			<< " for "  << fname 
+			<< " with arguments: request_type: " << type_str 
+			<< " virtual_addr: " << vaddr_str
+			<< " page_name: " << name 
+			<< " node_id: " << node_id 
+			<< " data: " << my_data 
+			<< " ----" << endl << flush;
+    myfile.close();
+	return 0;
+}
+
 void check_host_name(int hostname) { //This function returns host name for local computer
    if (hostname == -1) {
       perror("gethostname");
@@ -217,7 +265,7 @@ class DsmServiceImplementaion final : public dsm_service::Service {
 		memcpy(received_data, &request->data().front(), 4096);
 		string name = request->name();
 		
-		if (directory_id == my_id || true){
+		if (directory_id == my_id){
 			string type_str;
 			switch(request_type){
 				case 0: type_str = "READ_REQ"; break;
@@ -233,7 +281,8 @@ class DsmServiceImplementaion final : public dsm_service::Service {
 			//printf("0x%lx\n",(long) vaddr);
 			
 		}
-		
+		log_rpc("send_dsm_request", id_to_ip[requester_id], id_to_ip[my_id], request_type, vaddr, requester_id, received_data, name);
+
 		if (directory_id != my_id) {
 			// I am a holder of data. these requests are from directory
 			if (request_type == READ_REQ) {
@@ -684,7 +733,7 @@ void cleanup() {
 					grpc::InsecureChannelCredentials()
 				)
 			);
-			if (vaddr_to_entry.count(entry_to_vaddr[i])) {
+			if (vaddr_to_entry.count(entry_to_vaddr[i]) && !vaddr_to_name.count(entry_to_vaddr[i])) {
 				uint64_t vaddr = entry_to_vaddr[i];
 				char data[4096];//int data = *((int *)vaddr);
 				memcpy(data, (void *)vaddr, 4096);
@@ -694,7 +743,7 @@ void cleanup() {
 				uint64_t vaddr = entry_to_vaddr[i];
 				char data[4096];//int data = *((int *)vaddr);
 				memcpy(data, (void *)vaddr, 4096);
-				string name = entry_to_name[i];
+				string name = vaddr_to_name[entry_to_vaddr[i]];
 				//cout << "Sending data: " << data << endl;
 				client.send_dsm_request(UNREGISTER, 0, my_id, data, name);
 			}
