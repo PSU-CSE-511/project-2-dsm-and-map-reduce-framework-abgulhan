@@ -1,0 +1,196 @@
+#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <iostream>
+#include <time.h>
+#include "psu_dsm_system.h"
+#include "psu_lock.h"
+
+using namespace std;
+#define COUNT 4*4096
+int * global_array;
+int * partition_num;
+
+int logbase2(int n);
+int f_partition_num(int id, int level, int num);
+void partial_sort(int process_num, int total_processes_num);
+void merge(int process_num, int total_processes_num);
+
+void wait_partition(int a)
+{
+	psu_mutex_lock(0);
+	partition_num[a]++;
+	psu_mutex_unlock(0);
+	
+	while(partition_num[a] < 2);
+
+	return;
+}
+
+void initialize()
+{
+	srand((unsigned) time(NULL));//&t)); ** &t is not defined???
+	for(int i = 0; i<COUNT; i++)
+	{
+		global_array[i] = rand()%500;
+	}
+
+}
+int main(int argc, char* argv[])
+{
+	if(argc < 3)
+	{
+		printf("Format is <sort> <Process_num> <total_num_Proceses>\n");
+		return 0;
+	}
+	global_array = psu_dsm_malloc("global", COUNT*sizeof(int));
+	partition_num = psu_dsm_malloc("partition", 4096*sizeof(int));
+
+	printf("global array start address: 0x%lx\n",(long) &global_array);
+	printf("global array size: %d\n",COUNT*sizeof(int));
+	printf("global array end address: 0x%lx\n",((long) &global_array) + COUNT*sizeof(int));
+	printf("partition array start address: 0x%lx\n",((long) &partition_num));
+	printf("partition array size: %d\n",(1024*sizeof(int)));
+	printf("partition array end address: 0x%lx\n",((long) &partition_num) + (1024*sizeof(int)));
+	//psu_dsm_register_datasegment(&global_array, COUNT*sizeof(int)+(1024*sizeof(int)));
+	psu_init_lock(0);
+	int process_num;
+	int total_processes_num;
+	process_num = atoi(argv[1]);
+	total_processes_num = atoi(argv[2]);
+	if(process_num == 0)
+	{
+		initialize();
+		psu_mutex_lock(0);
+	 	partition_num[0]++;
+		psu_mutex_unlock(0);
+	}
+	else
+	{
+		while(partition_num[0] < 1);
+	}
+	partial_sort(process_num, total_processes_num);
+
+	//Do merging based on the process_num
+
+	int p = process_num;
+	int n = total_processes_num;
+	//Do merging based on the lock for 2 processes
+	int i = 0;
+	while((1<<i) < n)
+	{
+		if(p % (1<<i) == 0)
+		{
+			merge(p/(1<<i),n/(1<<i));
+			int b_id = f_partition_num(p,i,n);
+			wait_partition(b_id);
+		}
+		++i;
+	}
+
+	if(process_num == 0)
+	{
+		merge(0,1);
+		for(int i = 0; i<COUNT; i++)
+			std::cout<<global_array[i]<<" ";
+			//CAT it to a file
+			std::cout<<"--end--"<<endl;
+	}
+	
+	return 0;
+}
+
+void partial_sort(int process_num, int total_processes_num)
+{
+	//choose the offset based on the process_num and total_processes_num
+	int offset = process_num * (COUNT/total_processes_num);
+	int size = COUNT/total_processes_num;
+	cout << "=============== offset: " << offset << "size: " << size << endl;
+	int temp;
+	
+	for (int i = 0; i < size -1 ; i++)
+	{	
+		for(int j = 0 ; j < size-i-1; j++)
+		{
+			if(global_array[j+offset] > global_array[j+1+offset])
+			{
+				temp = global_array[j+offset];
+				global_array[j+offset] = global_array[j+1+offset];
+				global_array[j+1+offset] = temp;
+			}	
+		}
+	}
+	cout << "=============== finished partial sort" << endl;
+	return;
+}
+
+void merge(int process_num, int total_processes_num)
+{
+	cout << "=============== Entered merge" << endl;	
+	int offset = process_num * (COUNT/total_processes_num);
+	int size = COUNT/total_processes_num/2;
+
+	int* a = new int[size*2];
+	int i = 0;
+	int j = 0;
+	int k = 0;
+	while(i < size && j < size)
+	{
+		if(global_array[i+offset] < global_array[j+offset+size])
+		{
+			a[k++] = global_array[i+offset];
+			i++;
+		}
+		else
+		{
+			a[k++] = global_array[j+offset+size];
+			j++;	
+		}
+	}
+
+	if(j == size)
+	{
+		while(i<size)
+		{
+			a[k++] = global_array[i+offset];
+			i++;
+		}
+		
+	}
+	else
+	{	while(j<size)
+		{
+			a[k++] = global_array[j+offset+size];
+			j++;
+		}
+	}
+
+	for(int i=0; i<size*2; ++i)
+		global_array[i+offset] = a[i];
+
+	delete [] a;
+	cout << "=============== finished merge" << endl;
+}
+
+
+int logbase2(int n)
+{
+	int i = 0;
+	while(n>1)
+	{
+		i++;
+		n=n/2;
+	}
+	return i;
+}
+
+int f_partition_num(int id, int level, int num)
+{
+	int k = logbase2(num)-level-1;
+	cout << "k: " << k << endl;
+	int s_k = 1 << k;
+	int idx = id/(1 << (level+1));
+	cout << "s_k: " << s_k << " idx: " << idx << endl;
+	return s_k + idx;
+}
