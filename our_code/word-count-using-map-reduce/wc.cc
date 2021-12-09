@@ -315,7 +315,7 @@ int main(int argc, char* argv[])
 	if (argc > 1) {
 		word_count_filename = string(argv[1]);
 	} else {
-		word_count_filename = string("tmp");
+		word_count_filename = string("input1");
 	}
 	
 	psu_init_lock(0);
