@@ -13,7 +13,7 @@ int global_array[COUNT] __attribute__ ((aligned (4096)));
 int partition_num[1024] __attribute__ ((aligned (4096)));
 
 int logbase2(int n);
-int partition_num(int id, int level, int num);
+int f_partition_num(int id, int level, int num);
 void partial_sort(int process_num, int total_processes_num);
 void merge(int process_num, int total_processes_num);
 
@@ -30,7 +30,7 @@ void wait_partition(int a)
 
 void initialize()
 {
-	srand((unsigned) time(&t));
+	srand((unsigned) time(NULL));//&t)); ** &t is not defined???
 	for(int i = 0; i<COUNT; i++)
 	{
 		global_array[i] = rand()%500;
@@ -44,7 +44,12 @@ int main(int argc, char* argv[])
 		printf("Format is <sort> <Process_num> <total_num_Proceses>\n");
 		return 0;
 	}
-
+	printf("global array start address: 0x%lx\n",(long) &global_array);
+	printf("global array size: %d\n",COUNT*sizeof(int));
+	printf("global array end address: 0x%lx\n",((long) &global_array) + COUNT*sizeof(int));
+	printf("partition array start address: 0x%lx\n",((long) &partition_num));
+	printf("partition array size: %d\n",(1024*sizeof(int)));
+	printf("partition array end address: 0x%lx\n",((long) &partition_num) + (1024*sizeof(int)));
 	psu_dsm_register_datasegment(&global_array, COUNT*sizeof(int)+(1024*sizeof(int)));
 	psu_init_lock(0);
 	int process_num;
@@ -77,7 +82,7 @@ int main(int argc, char* argv[])
 		if(p % (1<<i) == 0)
 		{
 			merge(p/(1<<i),n/(1<<i));
-			int b_id = partition_num(p,i,n);
+			int b_id = f_partition_num(p,i,n);
 			wait_partition(b_id);
 		}
 		++i;
@@ -87,8 +92,9 @@ int main(int argc, char* argv[])
 	{
 		merge(0,1);
 		for(int i = 0; i<COUNT; i++)
-			std::cout<<global_array[i]<<"\n";
+			std::cout<<global_array[i]<<" ";
 			//CAT it to a file
+			std::cout<<"--end--"<<endl;
 	}
 	return 0;
 }
@@ -98,6 +104,7 @@ void partial_sort(int process_num, int total_processes_num)
 	//choose the offset based on the process_num and total_processes_num
 	int offset = process_num * (COUNT/total_processes_num);
 	int size = COUNT/total_processes_num;
+	cout << "=============== offset: " << offset << "size: " << size << endl;
 	int temp;
 	
 	for (int i = 0; i < size -1 ; i++)
@@ -112,11 +119,13 @@ void partial_sort(int process_num, int total_processes_num)
 			}	
 		}
 	}
+	cout << "=============== finished partial sort" << endl;
 	return;
 }
 
 void merge(int process_num, int total_processes_num)
 {
+	cout << "=============== Entered merge" << endl;	
 	int offset = process_num * (COUNT/total_processes_num);
 	int size = COUNT/total_processes_num/2;
 
@@ -159,7 +168,7 @@ void merge(int process_num, int total_processes_num)
 		global_array[i+offset] = a[i];
 
 	delete [] a;
-
+	cout << "=============== finished merge" << endl;
 }
 
 
@@ -174,10 +183,12 @@ int logbase2(int n)
 	return i;
 }
 
-int partition_num(int id, int level, int num)
+int f_partition_num(int id, int level, int num)
 {
 	int k = logbase2(num)-level-1;
+	cout << "k: " << k << endl;
 	int s_k = 1 << k;
 	int idx = id/(1 << (level+1));
+	cout << "s_k: " << s_k << " idx: " << idx << endl;
 	return s_k + idx;
 }
