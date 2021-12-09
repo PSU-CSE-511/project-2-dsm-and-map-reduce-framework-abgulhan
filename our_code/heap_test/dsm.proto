@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+
+package dsm;
+
+
+service dsm_service {
+    rpc send_dsm_request (dsm_request) returns (dsm_reply) {};
+}
+
+
+message dsm_request {
+    int32 type = 1;
+    int64 vaddr = 2;
+	int32 id = 3;
+	bytes data = 4;
+	string name = 5;
+}
+
+message dsm_reply {
+    int32 ack = 1;
+	int32 permission = 2;
+	bytes data = 3;
+}
