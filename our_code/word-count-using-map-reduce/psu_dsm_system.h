@@ -42,7 +42,7 @@ using dsm::dsm_reply;
 #define handle_error(msg) \
     do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
-#define MAX_PAGES 	100
+#define MAX_PAGES 	2000
 #define MAX_NODES	10
 	
 #define INVALID		0
